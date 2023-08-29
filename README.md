@@ -14,11 +14,11 @@ Detailed requirements will be provided later.
 ## Usage
 Run D-ARM with the following command:
 ```bash
-$ python main.py -i PATH_TO_BINARY -a ARCH[Other Options]
+$ python darm.py -i PATH_TO_BINARY -a ARCH [Other Options]
 ```
 e.g.:
 ```bash
-$ python darm.py -i utils/test/spec2000_gcc5.5_O0_marm_v5t_bzip2 -a 32
+$ python darm.py -i test/binary/spec2000_gcc5.5_O0_marm_v5t_bzip2 -a 32
 ```
 Arguments:
 - `-i`, `--input`: the filepath of input binary (required)

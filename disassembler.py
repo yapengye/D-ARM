@@ -1524,10 +1524,11 @@ class ARMDisassembler:
         )
         self.data_selected = set(self.data.keys()) - self.data_todo
 
+        # TODO: check if it is necessary
         ## Initial update
-        data_new = self.data_selected.copy()
-        if not self.greedy_add(set(), data_new, ss, addr):
-            logging.error("Initial greedy fail")
+        # data_new = self.data_selected.copy()
+        # if not self.greedy_add(set(), data_new, ss, addr):
+        #     logging.error("Initial greedy fail")
         # logging.debug("{} {} {}".format(hex(addr), t, s))
 
         entry_data = [[-self.data[addr].hint, addr, "D"] for addr in self.data_todo]

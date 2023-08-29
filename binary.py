@@ -138,7 +138,7 @@ class ARMBinary:
         self.mappings = sorted(self.arm_code_bound + self.thumb_code_bound + self.data)
 
     def read_sections_64(self):
-        cmd = "utils/arm-linux-gnueabihf-readelf -S " + self.path
+        cmd = "utils/aarch64-linux-gnu-readelf -S " + self.path
         output = subprocess.check_output(cmd, shell=True)
         output = output.decode("ISO-8859-1")
         line_list = output.split("\n")
@@ -186,7 +186,7 @@ class ARMBinary:
                 )
 
     def read_symbols_64(self):
-        cmd = "utils/arm-linux-gnueabihf-readelf -s " + self.path
+        cmd = "utils/aarch64-linux-gnu-readelf -s " + self.path
         output = subprocess.check_output(cmd, shell=True)
         output = output.decode("ISO-8859-1")
         for line in output.split("\n"):

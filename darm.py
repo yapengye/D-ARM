@@ -1,7 +1,8 @@
 import argparse
 from disassembler import ARMDisassembler
 from binary import ARMBinary
-
+import resource
+import sys
 
 def get_parser():
     parser = argparse.ArgumentParser(description="Disassemble ARM binary")
@@ -17,6 +18,7 @@ def get_parser():
         "--arch",
         dest="arch",
         default=32,
+        type=int,
         help="architecture of input binary (32 or 64)",
     )
     parser.add_argument(
@@ -63,4 +65,7 @@ def main():
 
 
 if __name__ == "__main__":
+    resource.setrlimit(resource.RLIMIT_STACK, (2**29,-1))
+    sys.setrecursionlimit(10**6)
+    
     main()
