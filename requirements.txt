@@ -1,0 +1,7 @@
+capstone==4.0.2
+certifi==2021.5.30
+joblib==1.1.1
+numpy==1.19.5
+scikit-learn==0.24.2
+scipy==1.5.4
+threadpoolctl==3.1.0

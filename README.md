@@ -7,18 +7,19 @@ This repo is WIP.
 
 ## Requirements
 - Python 3.6 or higher
-- capstone 4.0.2
-
-Detailed requirements will be provided later.
+- Install dependencies:
+```bash
+$ pip install -r requirements.txt
+```
 
 ## Usage
 Run D-ARM with the following command:
 ```bash
-$ python darm.py -i PATH_TO_BINARY -a ARCH [Other Options]
+python darm.py -i PATH_TO_BINARY -a ARCH [Other Options]
 ```
 e.g.:
 ```bash
-$ python darm.py -i test/binary/spec2000_gcc5.5_O0_marm_v5t_bzip2 -a 32
+python darm.py -i test/binary/spec2000_gcc5.5_O0_marm_v5t_bzip2 -a 32
 ```
 Arguments:
 - `-i`, `--input`: the filepath of input binary (required)
