@@ -24,9 +24,16 @@ class ARMBinary:
         self.cs_insts = []
         self.data_addr = []
 
-        # TODO: identify 32 or 64 automatically
+        aarch = self.check_arch()
         if self.aarch is None:
-            self.aarch = 32
+            self.aarch = aarch
+            print("The detected arch is {}".format(self.aarch))
+        elif self.aarch != aarch:
+            logging.warning(
+                "Please check the argument -a/-aarch. Provided value is {}, while the detected value is {}.".format(
+                    self.aarch, aarch
+                )
+            )
 
         self.disassembler = BasicDisassembler(aarch=self.aarch)
 
@@ -54,6 +61,30 @@ class ARMBinary:
         while x[0] in ("\0", 0):
             x = x[1:]
         return ARMBinary.to_hex2(x)
+
+    def check_arch(self):
+        cmd = "utils/arm-linux-gnueabi-readelf -h " + self.path
+        output = subprocess.check_output(cmd, shell=True)
+        output = output.decode("ISO-8859-1")
+
+        arch = 32
+        for line in output.split("\n"):
+            if len(line) == 0:
+                continue
+            info = line.split(":")
+            field = info[0].strip()
+            if field == "Class":
+                class_info = info[1].strip()
+                if class_info == "ELF32":
+                    arch = 32
+                elif class_info == "ELF64":
+                    arch = 64
+            elif field == "Machine":
+                machine = info[1].strip()
+                if machine != "ARM" and machine != "AArch64":
+                    logging.warning("Unknown machine type: {}".format(machine))
+
+        return arch
 
     def read_sections(self):
         if self.aarch == 32:
@@ -112,6 +143,7 @@ class ARMBinary:
         """
         Get the ARM mapping symbols
         """
+        self.is_stripped = True
         cmd = "utils/arm-linux-gnueabi-readelf -s " + self.path
         output = subprocess.check_output(cmd, shell=True)
         output = output.decode("ISO-8859-1")
@@ -132,6 +164,9 @@ class ARMBinary:
                 if sec_index not in self.code_indexes:
                     continue
                 self.thumb_code_bound.append(int(line.strip().split(" ")[1], 16))
+            
+            if "Symbol table \'.symtab\'" in line:
+                self.is_stripped = False
         self.arm_code_bound.sort()
         self.thumb_code_bound.sort()
         self.data.sort()
@@ -186,6 +221,7 @@ class ARMBinary:
                 )
 
     def read_symbols_64(self):
+        self.is_stripped = True
         cmd = "utils/aarch64-linux-gnu-readelf -s " + self.path
         output = subprocess.check_output(cmd, shell=True)
         output = output.decode("ISO-8859-1")
@@ -201,6 +237,8 @@ class ARMBinary:
                     continue
                 self.data.append(int(line.strip().split(" ")[1], 16))
 
+            if "Symbol table \'.symtab\'" in line:
+                self.is_stripped = False
         self.arm_code_bound.sort()
         self.data.sort()
         self.mappings = sorted(self.arm_code_bound + self.data)
@@ -594,10 +632,10 @@ class ARMBinary:
         self.read_sections()
         self.read_symbols()
 
-        if len(self.mappings) > 0:
-            self.is_stripped = False
-        else:
-            self.is_stripped = True
+        # if len(self.mappings) > 0:
+        #     self.is_stripped = False
+        # else:
+        #     self.is_stripped = True
 
         if mode_quick:
             self.get_instructions_quick()
@@ -623,11 +661,21 @@ class ARMBinary:
         return results
 
     def print_ground_truth(self, details=False, key_int=False):
-        self.generate_truth()
-
         if self.is_stripped:
             print("No ground truth for stripped binary")
             return
+        
+        print("Disassemble section (section name, start addr, end addr, size)")
+        for sec in self.sections:
+            print(
+                "  {} {} {} {}".format(
+                    sec,
+                    hex(self.sections[sec]["start_addr"]),
+                    hex(self.sections[sec]["end_addr"]),
+                    self.sections[sec]["size"],
+                )
+            )
+        print()
 
         results = self.get_insts_info()
 

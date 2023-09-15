@@ -17,7 +17,7 @@ def get_parser():
         "-a",
         "--arch",
         dest="arch",
-        default=32,
+        default=None,
         type=int,
         help="architecture of input binary (32 or 64)",
     )
@@ -52,6 +52,7 @@ def main():
     if args.ground_truth:
         print("Generating ground truth for {}".format(args.filepath_input))
         b = ARMBinary(args.filepath_input, aarch=args.arch)
+        b.generate_truth()
         b.print_ground_truth(details=args.verbose)
     else:
         darm = ARMDisassembler(

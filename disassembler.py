@@ -116,12 +116,10 @@ class ARMDisassembler:
         self.filepath_binary = filepath_binary
         self.output_dir = output_dir
         self.aarch = aarch
-        # TODO: identify 32 or 64 automatically
-        if not self.aarch:
-            self.aarch = 32
         self.verbose = verbose
 
         self.binary = ARMBinary(self.filepath_binary, self.aarch)
+        self.aarch = self.binary.aarch
 
         self.sections = dict()
         # address: [h, size, successor1, successor2, predecessors, inst]
@@ -140,7 +138,9 @@ class ARMDisassembler:
         if self.output_dir:
             if not os.path.exists(self.output_dir):
                 os.makedirs(self.output_dir)
-            self.filepath_hint_analysis = os.path.join(self.output_dir, "h_analysis.txt")
+            self.filepath_hint_analysis = os.path.join(
+                self.output_dir, "h_analysis.txt"
+            )
 
     def convert_capstone_const(self):
         if self.aarch == 32:
@@ -1587,23 +1587,39 @@ class ARMDisassembler:
         return results
 
     def print_results(self, results, details=False):
-        if details:
-            ss = self.superset_disasm()
-            for addr, inst_type in results:
-                if inst_type == "T":
-                    addr = addr + 1
-                inst = ss[addr].inst
+        print("Disassemble section (section name, start addr, end addr, size)")
+        for sec in self.sections:
+            print(
+                "  {} {} {} {}".format(
+                    sec,
+                    hex(self.sections[sec]["start_addr"]),
+                    hex(self.sections[sec]["end_addr"]),
+                    self.sections[sec]["size"],
+                )
+            )
+        print()
+
+        ss = self.superset_disasm()
+        for addr, inst_type in results:
+            if inst_type == "T":
+                addr = addr + 1
+            inst = ss[addr].inst
+            if details:
+                bytes = "".join(format(x, "02x") for x in inst.bytes)
                 print(
-                    "{} {} {} {}".format(
+                    "{} {} {} {:>8} {} {}".format(
                         hex(self.addr_decode(addr)),
                         inst_type,
+                        inst.size,
+                        bytes,
                         inst.mnemonic,
                         inst.op_str,
                     )
                 )
-        else:
-            for addr, inst_type in results:
-                print("{} {}".format(hex(self.addr_decode(addr)), inst_type))
+            else:
+                print(
+                    "{} {} {}".format(hex(self.addr_decode(addr)), inst_type, inst.size)
+                )
         return
 
     def disassemble(self):
@@ -1638,5 +1654,3 @@ class ARMDisassembler:
         results = self.slove_graph(superset)
         # self.print_results(results, self.verbose)
         return results
-
-
