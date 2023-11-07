@@ -3,6 +3,8 @@ from disassembler import ARMDisassembler
 from binary import ARMBinary
 import resource
 import sys
+import subprocess
+
 
 def get_parser():
     parser = argparse.ArgumentParser(description="Disassemble ARM binary")
@@ -30,6 +32,14 @@ def get_parser():
         help="generate ground truth",
     )
     parser.add_argument(
+        "-s",
+        "--strip",
+        dest="strip",
+        default=False,
+        action="store_true",
+        help="strip binary before disassembly",
+    )
+    parser.add_argument(
         "-v",
         "--verbose",
         dest="verbose",
@@ -37,11 +47,21 @@ def get_parser():
         action="store_true",
         help="print verbose output with instruction info",
     )
-    # output folder
     parser.add_argument(
-        "-d", "--output_dir", dest="output_dir", default="tmp", help="output directory"
+        "-o", "--output_dir", dest="output_dir", default="tmp", help="output directory"
     )
     return parser
+
+
+def check_if_stripped(filepath):
+    cmd = "file {}".format(filepath)
+    output = subprocess.check_output(cmd, shell=True)
+    output = output.decode("utf-8")
+    print(output)
+    if "not stripped" in output:
+        return False
+    else:
+        return True
 
 
 def main():
@@ -49,9 +69,13 @@ def main():
     args = parser.parse_args()
     # print(args)
 
-    if args.ground_truth:
+    is_stripped = check_if_stripped(args.filepath_input)
+    if not args.strip:
+        args.strip = is_stripped
+
+    if not args.strip:
         print("Generating ground truth for {}".format(args.filepath_input))
-        b = ARMBinary(args.filepath_input, aarch=args.arch)
+        b = ARMBinary(args.filepath_input, aarch=args.arch, is_stripped=False)
         b.generate_truth()
         b.print_ground_truth(details=args.verbose)
     else:
@@ -66,7 +90,7 @@ def main():
 
 
 if __name__ == "__main__":
-    resource.setrlimit(resource.RLIMIT_STACK, (2**29,-1))
+    resource.setrlimit(resource.RLIMIT_STACK, (2**29, -1))
     sys.setrecursionlimit(10**6)
-    
+
     main()

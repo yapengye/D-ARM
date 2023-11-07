@@ -9,11 +9,11 @@ from capstone.arm import *
 
 
 class ARMBinary:
-    def __init__(self, path, aarch=None):
+    def __init__(self, path, aarch=None, is_stripped=None):
         self.path = path
         self.aarch = aarch
+        self.is_stripped = is_stripped
 
-        self.is_stripped = None
         self.code_indexes = []
         self.arm_code_bound = []
         self.arm_codes = []
@@ -34,6 +34,9 @@ class ARMBinary:
                     self.aarch, aarch
                 )
             )
+
+        if is_stripped is None:
+            self.is_stripped = self.check_if_stripped()
 
         self.disassembler = BasicDisassembler(aarch=self.aarch)
 
@@ -85,6 +88,16 @@ class ARMBinary:
                     logging.warning("Unknown machine type: {}".format(machine))
 
         return arch
+
+    def check_if_stripped(self):
+        cmd = "file {}".format(self.path)
+        output = subprocess.check_output(cmd, shell=True)
+        output = output.decode("utf-8")
+        print(output)
+        if "not stripped" in output:
+            return False
+        else:
+            return True
 
     def read_sections(self):
         if self.aarch == 32:
@@ -143,7 +156,7 @@ class ARMBinary:
         """
         Get the ARM mapping symbols
         """
-        self.is_stripped = True
+        # self.is_stripped = True
         cmd = "utils/arm-linux-gnueabi-readelf -s " + self.path
         output = subprocess.check_output(cmd, shell=True)
         output = output.decode("ISO-8859-1")
@@ -165,8 +178,8 @@ class ARMBinary:
                     continue
                 self.thumb_code_bound.append(int(line.strip().split(" ")[1], 16))
             
-            if "Symbol table \'.symtab\'" in line:
-                self.is_stripped = False
+            # if "Symbol table \'.symtab\'" in line:
+            #     self.is_stripped = False
         self.arm_code_bound.sort()
         self.thumb_code_bound.sort()
         self.data.sort()
@@ -221,7 +234,7 @@ class ARMBinary:
                 )
 
     def read_symbols_64(self):
-        self.is_stripped = True
+        # self.is_stripped = True
         cmd = "utils/aarch64-linux-gnu-readelf -s " + self.path
         output = subprocess.check_output(cmd, shell=True)
         output = output.decode("ISO-8859-1")
@@ -237,8 +250,8 @@ class ARMBinary:
                     continue
                 self.data.append(int(line.strip().split(" ")[1], 16))
 
-            if "Symbol table \'.symtab\'" in line:
-                self.is_stripped = False
+            # if "Symbol table \'.symtab\'" in line:
+            #     self.is_stripped = False
         self.arm_code_bound.sort()
         self.data.sort()
         self.mappings = sorted(self.arm_code_bound + self.data)
@@ -738,6 +751,7 @@ class BasicDisassembler:
 
 
 if __name__ == "__main__":
-    b = ARMBinary("utils/test/spec2000_gcc5.5_O0_marm_v5t_bzip2", aarch=32)
-    # b = ARMBinary('utils/test/spec2000_gcc5.5_O0_marm_v5t_bzip2_stripped', aarch=32)
+    b = ARMBinary("test/binary/spec2000_gcc5.5_O0_marm_v5t_bzip2", aarch=32) 
+    # b = ARMBinary('test/binary/spec2000_gcc5.5_O0_marm_v5t_bzip2_stripped', aarch=32)
+    # b.generate_truth()
     b.print_ground_truth(details=False)

@@ -15,18 +15,19 @@ $ pip install -r requirements.txt
 ## Usage
 Run D-ARM with the following command:
 ```bash
-python darm.py -i PATH_TO_BINARY -a ARCH [Other Options]
+python darm.py -i PATH_TO_BINARY [Other Options]
 ```
 e.g.:
 ```bash
-python darm.py -i test/binary/spec2000_gcc5.5_O0_marm_v5t_bzip2 -a 32
+python darm.py -i test/binary/spec2000_gcc5.5_O0_marm_v5t_bzip2
 ```
 Arguments:
 - `-i`, `--input`: the filepath of input binary (required)
-- `-a`, `--arch`: architecture of input binary (32 or 64)
-- `-gt`, `--ground_truth`: generate the ground truth for unstripped binaries if it is set
-- `-v`, `--verbose`: print verbose output with instruction info
+- `-a`, `--arch`: architecture of input binary (32 or 64) (default: identify the architecture automatically)
+- `-v`, `--verbose`: print verbose output with instruction info (default: False)
+- `-s`, `--strip`: strip binary before disassembly (default: False)
 - `-o`, `--output_dir`: the folder for output files
+<!-- - `-gt`, `--ground_truth`: generate the ground truth for unstripped binaries if it is set -->
 
 
 ## Cite
