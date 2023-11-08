@@ -21,6 +21,8 @@ class ARMBinary:
         self.thumb_codes = []
         self.data = []
         self.sections = {}
+        self.sections_exec = {}
+        self.sections_data = {}
         self.cs_insts = []
         self.data_addr = []
 
@@ -93,7 +95,7 @@ class ARMBinary:
         cmd = "file {}".format(self.path)
         output = subprocess.check_output(cmd, shell=True)
         output = output.decode("utf-8")
-        print(output)
+        # print(output)
         if "not stripped" in output:
             return False
         else:
@@ -123,6 +125,7 @@ class ARMBinary:
         cmd = "utils/arm-linux-gnueabi-readelf -S " + self.path
         output = subprocess.check_output(cmd, shell=True)
         output = output.decode("ISO-8859-1")
+        # print(output)
         assert len(output) > 0, "section info should not be empty"
         for line in output.split("\n"):
             text_info = line.strip()[4:].split(" ")
@@ -132,22 +135,45 @@ class ARMBinary:
                     new_info.append(info)
             if len(new_info) < 7:
                 continue
+            
+            mode_exec, mode_data = False, False
+            if "X" in new_info[6]:
+                mode_exec = True
+            if "W" in new_info[6] or "S" in new_info[6]:
+                mode_data = True
 
-            if new_info[0] == ".text":
+            if mode_exec or mode_data:
+            # if new_info[0] == ".text":
                 addr = int(new_info[2], 16)
                 off = int(new_info[3], 16)
                 size = int(new_info[4], 16)
                 index = int(line.strip()[1:3])
-                self.code_indexes.append(index)
-                f = open(self.path, "rb")
-                f.read(off)
+                
                 sec_name = new_info[0]
-                self.sections[sec_name] = {}
-                self.sections[sec_name]["content"] = f.read(size)
-                self.sections[sec_name]["start_addr"] = addr
-                self.sections[sec_name]["end_addr"] = addr + size
-                self.sections[sec_name]["index"] = index
-                self.sections[sec_name]["size"] = size
+                new_sec = {}
+                # new_sec["content"] = f.read(size)
+                new_sec["start_addr"] = addr
+                new_sec["end_addr"] = addr + size
+                new_sec["index"] = index
+                new_sec["size"] = size
+
+                if mode_exec:
+                    self.sections_exec[sec_name] = new_sec
+                if mode_data:
+                    self.sections_data[sec_name] = new_sec
+                if new_info[0] == ".text":
+                    self.code_indexes.append(index)
+                    f = open(self.path, "rb")
+                    f.read(off)
+                    new_sec["content"] = f.read(size)
+                    f.close()
+                    self.sections[sec_name] = new_sec
+                # self.sections[sec_name] = {}
+                # self.sections[sec_name]["content"] = f.read(size)
+                # self.sections[sec_name]["start_addr"] = addr
+                # self.sections[sec_name]["end_addr"] = addr + size
+                # self.sections[sec_name]["index"] = index
+                # self.sections[sec_name]["size"] = size
                 logging.debug(
                     f"section name: {sec_name}, start_addr: {addr}, end_addr: {addr + size}, index: {index}"
                 )
@@ -213,22 +239,45 @@ class ARMBinary:
             if len(new_info) < 7:
                 continue
 
-            if new_info[0] == ".text":
+            mode_exec, mode_data = False, False
+            if "X" in new_info[6]:
+                mode_exec = True
+            if "W" in new_info[6] or "S" in new_info[6]:
+                mode_data = True
+
+            if mode_exec or mode_data:
+            # if new_info[0] == ".text":
                 addr = int(new_info[2], 16)
                 off = int(new_info[3], 16)
                 size = int(new_info[4], 16)
-
                 index = int(index)
-                self.code_indexes.append(index)
-                f = open(self.path, "rb")
-                f.read(off)
+                
                 sec_name = new_info[0]
-                self.sections[sec_name] = {}
-                self.sections[sec_name]["content"] = f.read(size)
-                self.sections[sec_name]["start_addr"] = addr
-                self.sections[sec_name]["end_addr"] = addr + size
-                self.sections[sec_name]["index"] = index
-                self.sections[sec_name]["size"] = size
+                new_sec = {}
+                # new_sec["content"] = f.read(size)
+                new_sec["start_addr"] = addr
+                new_sec["end_addr"] = addr + size
+                new_sec["index"] = index
+                new_sec["size"] = size
+
+                if mode_exec:
+                    self.sections_exec[sec_name] = new_sec
+                if mode_data:
+                    self.sections_data[sec_name] = new_sec
+                if new_info[0] == ".text":
+                    self.code_indexes.append(index)
+                    f = open(self.path, "rb")
+                    f.read(off)
+                    new_sec["content"] = f.read(size)
+                    f.close()
+                    self.sections[sec_name] = new_sec
+
+                # self.sections[sec_name] = {}
+                # self.sections[sec_name]["content"] = f.read(size)
+                # self.sections[sec_name]["start_addr"] = addr
+                # self.sections[sec_name]["end_addr"] = addr + size
+                # self.sections[sec_name]["index"] = index
+                # self.sections[sec_name]["size"] = size
                 logging.debug(
                     f"section name: {sec_name}, start_addr: {addr}, end_addr: {addr + size}, index: {index}"
                 )

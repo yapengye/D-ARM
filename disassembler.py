@@ -46,6 +46,11 @@ class ARMDisassembler:
     T_LSTM_DATA_MIN = 0.02  ## TODO: update
     T_LSTM_DATA_AVE = 0.2
 
+    ADDR_SUCCR_VALID = 0.1
+    ADDR_SUCCR_PERFECT = 0.5
+    ADDR_DATA_VALID = 0.1
+    ADDR_DATA_PERFECT = 0.5
+
     COMMON_INST_ID_32 = set(
         [
             75,
@@ -368,6 +373,30 @@ class ARMDisassembler:
                 break
         return is_valid
 
+    def is_addr_in_section_exec(self, addr):
+        addr_decode = self.addr_decode(addr)
+        for sec in self.sections_exec:
+            if addr_decode == self.sections_exec[sec]["start_addr"]:
+                return 1
+            elif (
+                addr_decode >= self.sections_exec[sec]["start_addr"]
+                and addr_decode < self.sections_exec[sec]["end_addr"]
+            ):
+                return 0
+        return -1
+
+    def is_addr_in_section_data(self, addr):
+        addr_decode = self.addr_decode(addr)
+        for sec in self.sections_data:
+            if addr_decode == self.sections_data[sec]["start_addr"]:
+                return 1
+            elif (
+                addr_decode >= self.sections_data[sec]["start_addr"]
+                and addr_decode < self.sections_data[sec]["end_addr"]
+            ):
+                return 0
+        return -1
+
     def get_sectioninfo(self):
         b = self.binary
         b.read_sections()
@@ -378,6 +407,9 @@ class ARMDisassembler:
             self.sections[sec]["end_addr"] = b.sections[sec]["end_addr"]
             self.sections[sec]["index"] = b.sections[sec]["index"]
             self.sections[sec]["size"] = b.sections[sec]["size"]
+        
+        self.sections_exec = b.sections_exec
+        self.sections_data = b.sections_data
         return
 
     def generate_nodeinst(self, inst, inst_type):
@@ -767,6 +799,7 @@ class ARMDisassembler:
                         # if set_bit == 1 and target % 4 != 0:
                         #    target = target - 2
                         succrs_data.append(target)
+                        # print(" target: {}".format(hex(target)))
             elif op.type == self.ARM_OP_IMM:
                 target = (
                     int(ProbArmDisassembler.to_x_32(op.imm), 16)
@@ -794,7 +827,7 @@ class ARMDisassembler:
             inst = node_inst.inst
             bytes = "".join(format(x, "02x") for x in inst.bytes)
             print(
-                "{} {} {} {} {}".format(
+                "{} {} {:>8} {} {}".format(
                     hex(addr), node_inst.type, bytes, inst.mnemonic, inst.op_str
                 )
             )
@@ -803,7 +836,7 @@ class ARMDisassembler:
             # node_inst.hint, self.hint_dl[addr][1], self.hint_scores[addr]
             # [hex(a) for a in node_inst.succr_data]
 
-    ## Data hint ##
+    ## Hints ##
 
     def static_analysis(self, ss):
         for addr in ss:
@@ -1057,7 +1090,7 @@ class ARMDisassembler:
             # for addr in sorted(ss.keys()):
             for addr in self.addr_sorted:
                 f.write(
-                    "{0[1]} {0[2]} {0[3]} {1}\n".format(self.hint_scores[addr], addr)
+                    "{0[1]} {0[2]} {0[3]} {1} {2}\n".format(self.hint_scores[addr], addr, hex(addr))
                 )
         return
 
@@ -1117,10 +1150,11 @@ class ARMDisassembler:
         """
         - hard code the start of func
         - if the start of a cf is: ldr, push, add
-        - movw movt
         - bl + ldr: incorrect
         - cmp + b{cond}
+
         - b close_target
+        - movw movt
         """
         set_close_target = set([self.ARM_INS_BL, self.ARM_INS_B])
         for addr in ss:
@@ -1189,11 +1223,46 @@ class ARMDisassembler:
 
         return ss
 
+    def update_succr_scores(self, ss):
+        for addr in ss:
+            for succr_inst in ss[addr].succr:
+                valid_score = self.is_addr_in_section_exec(succr_inst)
+                if valid_score > 0:
+                    ss[addr].hint += self.ADDR_SUCCR_PERFECT
+                elif valid_score == 0:
+                    ss[addr].hint += self.ADDR_SUCCR_VALID
+            for succr_data in ss[addr].succr_data:
+                valid_score = self.is_addr_in_section_data(succr_data)
+                if valid_score > 0:
+                    ss[addr].hint += self.ADDR_SUCCR_PERFECT
+                elif valid_score == 0:
+                    ss[addr].hint += self.ADDR_SUCCR_VALID
+                if self.is_addr_in_section(succr_data):
+                    ss[addr].hint += self.ADDR_SUCCR_VALID
+
+        return
+    
     def compute_node_weights(self, ss):
         self.add_data_hint_readable_string()
         self.compute_analysis_hint_scores(ss)
-        ss = self.check_common_pattern(ss)
+        self.check_common_pattern(ss)
+        self.update_succr_scores(ss)
         return
+
+    def print_scores_inst(self, ss):
+        for addr in sorted(ss.keys()):
+            node_inst = ss[addr]
+            inst = node_inst.inst
+            bytes = "".join(format(x, "02x") for x in inst.bytes)
+            print(
+                "{} {} {:>8} {} {} {} {}".format(
+                    hex(addr), node_inst.type, bytes, ss[addr].hint, self.hint_scores[addr], inst.mnemonic, inst.op_str
+                )
+            )
+    
+    def print_scores_data(self):
+        for addr in sorted(self.data.keys()):
+            print("{} {} {}".format(hex(addr), self.data[addr].type, self.data[addr].hint))
 
     def dfs_addr_all_check_invalid(self, ss, addr, visited):
         if addr in visited:
@@ -1220,16 +1289,18 @@ class ARMDisassembler:
             ## Remove inst_node from superset if it has invalid succr
             if len(superset[addr].succr) == 1:
                 a = superset[addr].succr[0]
-                if a not in superset and self.is_addr_in_section(a):
+                # if a not in superset and self.is_addr_in_section(a):
+                if self.is_addr_in_section_exec(a) < 0:
                     addr_remove = self.dfs_addr_all_check_invalid(
                         superset, addr, addr_remove
                     )
+        
         # TODO: need to update after adding more scores
 
         # Update superset
         for addr in superset:
             # TODO: check if it is necessary
-            superset[addr].inst = None
+            # superset[addr].inst = None
             if addr in addr_remove:
                 continue
             ss[addr] = superset[addr]
@@ -1539,7 +1610,8 @@ class ARMDisassembler:
 
         while len(h) > 0:
             s, addr, t = heapq.heappop(h)
-            if s > -0.1:
+            # if s > -0.1:
+            if s > -0.01:
                 break
 
             if t == "D":
@@ -1640,17 +1712,15 @@ class ARMDisassembler:
         self.compute_node_weights(superset)
         # gc.collect()
 
-        superset = self.check_common_pattern(superset)
-
         superset = self.update_superset_with_invalid_nodes(superset)
         # ss = pad.release_nodeinst(ss)
         self.superset = superset
         # gc.collect()
-        # self.print_superset_info(self.superset)
 
         self.aggregate_weights(superset)
         gc.collect()
 
         results = self.slove_graph(superset)
         # self.print_results(results, self.verbose)
+
         return results

@@ -57,7 +57,6 @@ def check_if_stripped(filepath):
     cmd = "file {}".format(filepath)
     output = subprocess.check_output(cmd, shell=True)
     output = output.decode("utf-8")
-    print(output)
     if "not stripped" in output:
         return False
     else:
@@ -74,7 +73,6 @@ def main():
         args.strip = is_stripped
 
     if not args.strip:
-        print("Generating ground truth for {}".format(args.filepath_input))
         b = ARMBinary(args.filepath_input, aarch=args.arch, is_stripped=False)
         b.generate_truth()
         b.print_ground_truth(details=args.verbose)
