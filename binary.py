@@ -26,10 +26,11 @@ from capstone.arm import *
 
 
 class ARMBinary:
-    def __init__(self, path, aarch=None, is_stripped=None):
+    def __init__(self, path, aarch=None, is_stripped=None, section_name=None):
         self.path = path
         self.aarch = aarch
         self.is_stripped = is_stripped
+        self.section_name = section_name
 
         self.code_indexes = []
         self.arm_code_bound = []
@@ -54,8 +55,11 @@ class ARMBinary:
                 )
             )
 
-        if is_stripped is None:
+        if self.is_stripped is None:
             self.is_stripped = self.check_if_stripped()
+
+        if self.section_name is None:
+            self.section_name = ".text"
 
         self.disassembler = BasicDisassembler(aarch=self.aarch)
 
@@ -125,6 +129,7 @@ class ARMBinary:
             self.read_sections_64()
         else:
             raise RuntimeError("wrong aarch")
+                
         return
 
     def read_symbols(self):
@@ -178,7 +183,8 @@ class ARMBinary:
                     self.sections_exec[sec_name] = new_sec
                 if mode_data:
                     self.sections_data[sec_name] = new_sec
-                if new_info[0] == ".text":
+                # if new_info[0] == ".text":
+                if new_info[0] == self.section_name:
                     self.code_indexes.append(index)
                     f = open(self.path, "rb")
                     f.read(off)
@@ -203,6 +209,7 @@ class ARMBinary:
         cmd = "utils/arm-linux-gnueabi-readelf -s " + self.path
         output = subprocess.check_output(cmd, shell=True)
         output = output.decode("ISO-8859-1")
+        # print(output)
         assert len(output) > 0, "mappings symbols should not be empty"
         for line in output.split("\n"):
             if "$a" in line:
@@ -281,7 +288,8 @@ class ARMBinary:
                     self.sections_exec[sec_name] = new_sec
                 if mode_data:
                     self.sections_data[sec_name] = new_sec
-                if new_info[0] == ".text":
+                if new_info[0] == self.section_name:
+                # if new_info[0] == ".text":
                     self.code_indexes.append(index)
                     f = open(self.path, "rb")
                     f.read(off)
@@ -709,6 +717,9 @@ class ARMBinary:
 
     def generate_truth(self, mode_quick=False):
         self.read_sections()
+        if len(self.sections) == 0:
+            print("No executable section found. Please check the input section name {}".format(self.section_name))
+            return
         self.read_symbols()
 
         # if len(self.mappings) > 0:
@@ -742,6 +753,8 @@ class ARMBinary:
     def print_ground_truth(self, details=False, key_int=False):
         if self.is_stripped:
             print("No ground truth for stripped binary")
+            return
+        if len(self.sections) == 0:
             return
         
         print("Disassemble section (section name, start addr, end addr, size)")

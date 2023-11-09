@@ -139,7 +139,7 @@ class ARMDisassembler:
         self.aarch = aarch
         self.verbose = verbose
 
-        self.binary = ARMBinary(self.filepath_binary, self.aarch)
+        self.binary = ARMBinary(self.filepath_binary, aarch=self.aarch)
         self.aarch = self.binary.aarch
 
         self.sections = dict()
@@ -1253,7 +1253,9 @@ class ARMDisassembler:
                     ss[addr].hint += self.ADDR_SUCCR_PERFECT
                 elif valid_score == 0:
                     ss[addr].hint += self.ADDR_SUCCR_VALID
-                if self.is_addr_in_section(succr_data):
+                # TODO: check
+                # if self.is_addr_in_section(succr_data):
+                if self.is_addr_in_section_exec(succr_data) >= 0:
                     ss[addr].hint += self.ADDR_SUCCR_VALID
 
         return
@@ -1675,6 +1677,8 @@ class ARMDisassembler:
         return results
 
     def print_results(self, results, details=False):
+        if len(self.sections) < 1:
+            return
         print("Disassemble section (section name, start addr, end addr, size)")
         for sec in self.sections:
             print(
@@ -1711,6 +1715,10 @@ class ARMDisassembler:
         return
 
     def disassemble(self):
+        if len(self.sections) < 1:
+            print("No executable section found. Please check the input section name {}".format(self.section_name))
+            return
+
         superset = self.superset_disasm()
         superset = self.update_superset_successor(superset)
 

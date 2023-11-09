@@ -64,6 +64,13 @@ def get_parser():
         help="print verbose output with instruction info",
     )
     parser.add_argument(
+        "-section",
+        "--section_name",
+        dest="section_name",
+        default=None,
+        help="the section name to disassemble",
+    )
+    parser.add_argument(
         "-o", "--output_dir", dest="output_dir", default="tmp", help="output directory"
     )
     return parser
@@ -89,7 +96,7 @@ def main():
         args.strip = is_stripped
 
     if not args.strip:
-        b = ARMBinary(args.filepath_input, aarch=args.arch, is_stripped=False)
+        b = ARMBinary(args.filepath_input, aarch=args.arch, is_stripped=False, section_name=args.section_name)
         b.generate_truth()
         b.print_ground_truth(details=args.verbose)
     else:
