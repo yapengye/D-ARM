@@ -71,6 +71,14 @@ def get_parser():
         help="the section name to disassemble",
     )
     parser.add_argument(
+        "-sections",
+        "--section_list",
+        dest="section_list",
+        type=str,
+        nargs="+",
+        help="a list of section names to disassemble",
+    )
+    parser.add_argument(
         "-o", "--output_dir", dest="output_dir", default="tmp", help="output directory"
     )
     return parser
@@ -96,9 +104,33 @@ def main():
         args.strip = is_stripped
 
     if not args.strip:
-        b = ARMBinary(args.filepath_input, aarch=args.arch, is_stripped=False, section_name=args.section_name)
-        b.generate_truth()
-        b.print_ground_truth(details=args.verbose)
+        if args.section_list is not None and len(args.section_list) > 0:
+            b = ARMBinary(
+                args.filepath_input,
+                aarch=args.arch,
+                is_stripped=False,
+                section_name=args.section_list[0],
+                )
+            aarch = b.aarch
+            for section_name in args.section_list:
+                print()
+                b = ARMBinary(
+                    args.filepath_input,
+                    aarch=aarch,
+                    is_stripped=False,
+                    section_name=section_name,
+                )
+                b.generate_truth()
+                b.print_ground_truth(details=args.verbose)
+        else:
+            b = ARMBinary(
+                args.filepath_input,
+                aarch=args.arch,
+                is_stripped=False,
+                section_name=args.section_name,
+            )
+            b.generate_truth()
+            b.print_ground_truth(details=args.verbose)
     else:
         darm = ARMDisassembler(
             args.filepath_input,
