@@ -49,10 +49,11 @@ class NodeData:
 
 
 class ARMDisassembler:
-    S_UNCOMMON_OP = -5
+    S_UNCOMMON_OP = -1
     S_LIKE_DATA = -1
     S_REG_REDEFINE = -10
     S_CLOSE_TARGET = -10
+    S_COMMON_BASIC = 5
     S_MOVW_MOVT = 10
     S_CMP_CC = 1
 
@@ -67,6 +68,7 @@ class ARMDisassembler:
     ADDR_DATA_VALID = 0.1
     ADDR_DATA_PERFECT = 0.5
 
+    # TODO: use const from capstone
     COMMON_INST_ID_32 = set(
         [
             75,
@@ -164,6 +166,7 @@ class ARMDisassembler:
             )
 
     def convert_capstone_const(self):
+        # TODO: put const in separate files
         if self.aarch == 32:
             self.ARM_INS_NOP = ARM_INS_NOP
             self.ARM_INS_POP = ARM_INS_POP
@@ -240,6 +243,25 @@ class ARMDisassembler:
                 ARM_INS_STR: 4,
             }
 
+            self.ldr_str_simd = set(
+                [
+                    ARM_INS_VLD1,
+                    ARM_INS_VLD2,
+                    ARM_INS_VLD3,
+                    ARM_INS_VLD4,
+                    ARM_INS_VLDMDB,
+                    ARM_INS_VLDMIA,
+                    ARM_INS_VLDR,
+                    ARM_INS_VST1,
+                    ARM_INS_VST2,
+                    ARM_INS_VST3,
+                    ARM_INS_VST4,
+                    ARM_INS_VSTMDB,
+                    ARM_INS_VSTMIA,
+                    ARM_INS_VSTR,
+                ]
+            )
+
             self.dict_cc_reverse = {
                 ARM_CC_EQ: ARM_CC_NE,
                 ARM_CC_HS: ARM_CC_LO,
@@ -256,6 +278,8 @@ class ARMDisassembler:
                 ARM_CC_LT: ARM_CC_GE,
                 ARM_CC_LE: ARM_CC_GT,
             }
+
+            self.supported_insts = self.COMMON_INST_ID_32 | self.dict_ldr_str.keys() | self.ldr_str_simd
 
         elif self.aarch == 64:
             self.ARM_INS_NOP = ARM64_INS_NOP
@@ -318,6 +342,8 @@ class ARMDisassembler:
                 ARM64_INS_STR: 4,
                 ARM64_INS_STRH: 2,
             }
+
+            self.ldr_str_simd = set()
 
             self.dict_cc_reverse = {
                 ARM64_CC_EQ: ARM64_CC_NE,
@@ -438,8 +464,12 @@ class ARMDisassembler:
         node_inst.regs_write = set(node_inst.regs_write)
 
         # uncommon opcode
-        if self.aarch == 32 and inst.id not in ARMDisassembler.COMMON_INST_ID_32:
-            node_inst.hint = ARMDisassembler.S_UNCOMMON_OP
+        # TODO:
+        # - Improve the hints for more instructions based on distribution
+        # - Too aggressive for unsupported insts
+        if self.aarch == 32:
+            if inst.id not in self.supported_insts:
+                node_inst.hint = ARMDisassembler.S_UNCOMMON_OP
 
         return node_inst
 
@@ -818,7 +848,7 @@ class ARMDisassembler:
                         # print(" target: {}".format(hex(target)))
             elif op.type == self.ARM_OP_IMM:
                 target = (
-                    int(ProbArmDisassembler.to_x_32(op.imm), 16)
+                    int(ARMDisassembler.to_x_32(op.imm), 16)
                     if op.imm < 0
                     else op.imm
                 )
@@ -1053,12 +1083,16 @@ class ARMDisassembler:
 
         if self.ARM_REG_PC in ss[addr_cur].regs_write:
             pass_branch = True
+        # Or check if ARM_REG_ITSTATE/ARM_REG_ITSTATE in ss[addr_cur].regs_write:
+        if ss[addr_cur].inst.id == self.ARM_INS_CMP or ss[addr_cur].inst.id == ARM_INS_CMN:
+            pass_branch = True
 
         for r in ss[addr_cur].regs_write:
             if r in write_regs:
                 if r in set([self.ARM_REG_IP, self.ARM_REG_LR]):
                     continue
                 if not pass_branch:
+                    # TODO: check the score
                     self.hint_scores[addr_def][3] += -10
                 removed_regs.append(r)
                 del write_regs[r]
@@ -1173,7 +1207,7 @@ class ARMDisassembler:
         - movw movt
         """
         set_close_target = set([self.ARM_INS_BL, self.ARM_INS_B])
-        for addr in ss:
+        for addr in sorted(ss.keys()):
             if ss[addr].inst.id in set_close_target:
                 if len(ss[addr].succr) == 1:
                     addr_target = ss[addr].succr[0]
@@ -1232,6 +1266,14 @@ class ARMDisassembler:
                             self.data[a_decode].accessed_inst.append(addr)
                         if a in ss:
                             ss[a].hint += ARMDisassembler.S_CLOSE_TARGET
+            elif ss[addr].inst.id == self.ARM_INS_BX:
+                if not (len(ss[addr].inst.operands) == 1 and ss[addr].inst.operands[0].type == self.ARM_OP_REG and ss[addr].inst.operands[0].reg == self.ARM_REG_LR):
+                    continue
+                for addr_pred in ss[addr].pred:
+                    if addr_pred in ss and ss[addr_pred].inst.id in self.ldr_str_simd:
+                        if ss[addr_pred].inst.id not in self.supported_insts:
+                            ss[addr_pred].hint -= ARMDisassembler.S_UNCOMMON_OP
+                        ss[addr_pred].hint += ARMDisassembler.S_COMMON_BASIC
             elif ss[addr].inst.id == self.ARM_INS_MOVW:
                 addr_next = addr + ss[addr].size
                 if addr_next in ss and ss[addr_next].inst.id == self.ARM_INS_MOVT:
@@ -1746,5 +1788,4 @@ class ARMDisassembler:
 
         results = self.slove_graph(superset)
         # self.print_results(results, self.verbose)
-
         return results
